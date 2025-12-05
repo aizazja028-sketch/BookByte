@@ -117,7 +117,7 @@ DATABASES = {
         'PORT': os.environ.get('MYSQLPORT'),
         'OPTIONS': {
             "charset": "utf8mb4",
-            "ssl": {"fake_flag_to_enable_tls": True}
+            'ssl': {}
         }
     }
 }
