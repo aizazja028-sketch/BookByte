@@ -152,10 +152,17 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:8080',
-    'http://192.168.18.44:8080',
-]
+# CORS_ALLOWED_ORIGINS = [
+#     'http://localhost:8080',
+#     'http://192.168.18.44:8080',
+# ]
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:8080', cast=Csv())
+
+# CSRF settings for production
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost:8080', cast=Csv())
+
 
 CORS_ALLOW_METHODS = [
     'DELETE',
