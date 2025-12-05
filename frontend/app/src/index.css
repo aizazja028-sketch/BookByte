@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* BookByte - Warm reading theme */
+    --background: 42 47% 95%;
+    --foreground: 28 25% 15%;
+
+    --card: 40 40% 98%;
+    --card-foreground: 28 25% 15%;
+
+    --popover: 40 40% 98%;
+    --popover-foreground: 28 25% 15%;
+
+    --primary: 24 60% 50%;
+    --primary-foreground: 40 40% 98%;
+
+    --secondary: 36 30% 88%;
+    --secondary-foreground: 28 25% 15%;
+
+    --muted: 36 30% 92%;
+    --muted-foreground: 28 15% 45%;
+
+    --accent: 24 60% 50%;
+    --accent-foreground: 40 40% 98%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 40 40% 98%;
+
+    --border: 36 20% 85%;
+    --input: 36 20% 85%;
+    --ring: 24 60% 50%;
+
+    --radius: 0.75rem;
+    
+    /* Custom design tokens */
+    --gradient-warm: linear-gradient(135deg, hsl(42 47% 95%), hsl(36 35% 90%));
+    --shadow-card: 0 2px 8px hsla(28, 25%, 15%, 0.08);
+    --shadow-hover: 0 4px 12px hsla(24, 60%, 50%, 0.15);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 28 20% 12%;
+    --foreground: 40 40% 95%;
+
+    --card: 28 18% 15%;
+    --card-foreground: 40 40% 95%;
+
+    --popover: 28 18% 15%;
+    --popover-foreground: 40 40% 95%;
+
+    --primary: 24 65% 55%;
+    --primary-foreground: 28 20% 12%;
+
+    --secondary: 28 15% 20%;
+    --secondary-foreground: 40 40% 95%;
+
+    --muted: 28 15% 20%;
+    --muted-foreground: 36 15% 60%;
+
+    --accent: 24 65% 55%;
+    --accent-foreground: 28 20% 12%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 40 40% 95%;
+
+    --border: 28 15% 22%;
+    --input: 28 15% 22%;
+    --ring: 24 65% 55%;
+    
+    --shadow-card: 0 2px 8px hsla(0, 0%, 0%, 0.3);
+    --shadow-hover: 0 4px 12px hsla(24, 65%, 55%, 0.25);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Social Media Feed Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Custom scrollbar for webkit browsers */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
