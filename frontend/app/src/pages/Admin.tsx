@@ -474,12 +474,8 @@ ${cleanedText}`;
     //       'Accept': 'text/plain',
     //     },
     //   });
-    let fetchUrl = textUrl;
-    if (import.meta.env.DEV) {
-            fetchUrl = textUrl.replace("https://www.gutenberg.org", "/api/gutenberg");
-              }
+    let fetchUrl = `/api/backend/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
     console.log("Fetching from:", fetchUrl);
-
     const response = await fetch(fetchUrl, {
               method: "GET",
               headers: {
@@ -736,5 +732,6 @@ ${cleanedText}`;
 };
 
 export default Admin;
+
 
 
