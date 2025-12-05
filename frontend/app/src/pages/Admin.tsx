@@ -406,19 +406,31 @@ ${cleanedText}`;
 
     setLoading(true);
     
-    try {
-      // Use Vite's proxy in development
-      const proxyUrl = '/api/gutenberg';
-      const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
+    // try {
+    //   // Use Vite's proxy in development
+    //   const proxyUrl = '/api/gutenberg';
+    //   const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
       
-      console.log("Fetching from:", fetchUrl);
+    //   console.log("Fetching from:", fetchUrl);
       
-      const response = await fetch(fetchUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'text/plain',
-        },
-      });
+    //   const response = await fetch(fetchUrl, {
+    //     method: 'GET',
+    //     headers: {
+    //       'Accept': 'text/plain',
+    //     },
+    //   });
+    let fetchUrl = textUrl;
+    if (import.meta.env.DEV) {
+            fetchUrl = textUrl.replace("https://www.gutenberg.org", "/api/gutenberg");
+              }
+    console.log("Fetching from:", fetchUrl);
+
+    const response = await fetch(fetchUrl, {
+              method: "GET",
+              headers: {
+              "Accept": "text/plain",
+                },
+                });
       
       console.log("Response status:", response.status);
       console.log("Response ok:", response.ok);
@@ -669,3 +681,4 @@ ${cleanedText}`;
 };
 
 export default Admin;
+
