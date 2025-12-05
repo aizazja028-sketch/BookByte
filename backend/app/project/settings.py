@@ -94,6 +94,19 @@ WSGI_APPLICATION = 'project.wsgi.application'
 # }
 
 # ------- .. added this section 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': os.environ.get('MYSQLDATABASE'),
+#         'USER': os.environ.get('MYSQLUSER'),
+#         'PASSWORD': os.environ.get('MYSQLPASSWORD'),
+#         'HOST': os.environ.get('MYSQLHOST'),
+#         'PORT': os.environ.get('MYSQLPORT'),
+#         'OPTIONS': {
+#             'charset': 'utf8mb4',
+#         }
+#     }
+# }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -103,10 +116,12 @@ DATABASES = {
         'HOST': os.environ.get('MYSQLHOST'),
         'PORT': os.environ.get('MYSQLPORT'),
         'OPTIONS': {
-            'charset': 'utf8mb4',
+            "charset": "utf8mb4",
+            "ssl": {"fake_flag_to_enable_tls": True}
         }
     }
 }
+
 
 
 
