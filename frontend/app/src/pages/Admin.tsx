@@ -22,103 +22,48 @@ interface ProcessedBook {
   processedAt: string;
 }
 
-// const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata | null => {
-//   try {
-//     // Find the metadata section (before "*** START OF")
-//     const metadataEndMarker = bookText.indexOf("*** START OF");
-//     if (metadataEndMarker === -1) {
-//       console.error("Could not find metadata section");
-//       return null;
-//     }
-    
-//     const metadataSection = bookText.substring(0, metadataEndMarker);
-//     console.log("Metadata section:", metadataSection.substring(0, 1000));
-    
-//     // Extract Title (capture everything until we hit a blank line followed by "Author:")
-//     const titleMatch = metadataSection.match(/Title:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nAuthor:)/i);
-//     const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Title";
-    
-//     // Extract Author (single or multi-line until blank line)
-//     const authorMatch = metadataSection.match(/Author:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nRelease date:)/i);
-//     const author = authorMatch ? authorMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Author";
-    
-//     // Extract Release Date (capture date before the bracket)
-//     const releaseDateMatch = metadataSection.match(/Release date:\s*([^\[]+?)(?:\s*\[|$)/i);
-//     const releaseDate = releaseDateMatch ? releaseDateMatch[1].trim() : "Unknown Date";
-    
-//     // Extract Language (single line value)
-//     const languageMatch = metadataSection.match(/Language:\s*([^\n]+)/i);
-//     const language = languageMatch ? languageMatch[1].trim() : "Unknown Language";
-    
-//     console.log("Extracted values:", { title, author, releaseDate, language });
-    
-//     return {
-//       title,
-//       author,
-//       releaseDate,
-//       language,
-//       sourceUrl
-//     };
-//   } catch (error) {
-//     console.error("Error extracting metadata:", error);
-//     return null;
-//   }
-// };
-
 const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata | null => {
   try {
-    // Gutenberg header detection (new + old formats)
-    const startMarkerIndex = bookText.search(/\*\*\* *START OF/i);
-
-    if (startMarkerIndex === -1) {
-      console.error("Metadata START not found.");
+    // Find the metadata section (before "*** START OF")
+    const metadataEndMarker = bookText.indexOf("*** START OF");
+    if (metadataEndMarker === -1) {
+      console.error("Could not find metadata section");
       return null;
     }
-
-    const header = bookText.substring(0, startMarkerIndex);
-
-    // More forgiving regex patterns
-    const titleMatch =
-      header.match(/Title:\s*(.+)/i) ||
-      header.match(/TITLE:\s*(.+)/);
-
-    const authorMatch =
-      header.match(/Author:\s*(.+)/i) ||
-      header.match(/AUTHOR:\s*(.+)/);
-
-    const releaseDateMatch =
-      header.match(/Release Date:\s*(.+)/i) ||
-      header.match(/Release Date\s*:\s*(.+)/i);
-
-    const languageMatch =
-      header.match(/Language:\s*(.+)/i) ||
-      header.match(/LANGUAGE:\s*(.+)/);
-
-    const title = titleMatch ? titleMatch[1].trim() : "Unknown Title";
-    const author = authorMatch ? authorMatch[1].trim() : "Unknown Author";
+    
+    const metadataSection = bookText.substring(0, metadataEndMarker);
+    console.log("Metadata section:", metadataSection.substring(0, 1000));
+    
+    // Extract Title (capture everything until we hit a blank line followed by "Author:")
+    const titleMatch = metadataSection.match(/Title:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nAuthor:)/i);
+    const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Title";
+    
+    // Extract Author (single or multi-line until blank line)
+    const authorMatch = metadataSection.match(/Author:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nRelease date:)/i);
+    const author = authorMatch ? authorMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Author";
+    
+    // Extract Release Date (capture date before the bracket)
+    const releaseDateMatch = metadataSection.match(/Release date:\s*([^\[]+?)(?:\s*\[|$)/i);
     const releaseDate = releaseDateMatch ? releaseDateMatch[1].trim() : "Unknown Date";
+    
+    // Extract Language (single line value)
+    const languageMatch = metadataSection.match(/Language:\s*([^\n]+)/i);
     const language = languageMatch ? languageMatch[1].trim() : "Unknown Language";
-
-    console.log("Extracted:", { title, author, releaseDate, language });
-
+    
+    console.log("Extracted values:", { title, author, releaseDate, language });
+    
     return {
       title,
       author,
       releaseDate,
       language,
-      sourceUrl,
+      sourceUrl
     };
-
-  } catch (err) {
-    console.error("Metadata extraction error:", err);
+  } catch (error) {
+    console.error("Error extracting metadata:", error);
     return null;
   }
 };
-
-
-
-
-
 
 const Admin = () => {
   const [url, setUrl] = useState("");
@@ -463,9 +408,8 @@ ${cleanedText}`;
     
     try {
       // Use Vite's proxy in development
-      // const proxyUrl = '/api/gutenberg';
-      // const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
-      let fetchUrl = `/api/backend/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
+      const proxyUrl = '/api/gutenberg';
+      const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
       
       console.log("Fetching from:", fetchUrl);
       
@@ -475,8 +419,6 @@ ${cleanedText}`;
           'Accept': 'text/plain',
         },
       });
-
-
       
       console.log("Response status:", response.status);
       console.log("Response ok:", response.ok);
@@ -727,7 +669,3 @@ ${cleanedText}`;
 };
 
 export default Admin;
-
-
-
-
