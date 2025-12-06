@@ -410,8 +410,8 @@ ${cleanedText}`;
       // Use Vite's proxy in development
       // const proxyUrl = '/api/gutenberg';
       // const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
-      // const fetchUrl='https://www.gutenberg.org/cache/epub/77400/pg77400.txt'
-      let fetchUrl = `${import.meta.env.VITE_BACKEND_URL}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
+      const fetchUrl='https://www.gutenberg.org/cache/epub/77400/pg77400.txt'
+      // let fetchUrl = `${import.meta.env.VITE_BACKEND_URL}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
       console.log("Fetching from:", fetchUrl);
       
       const response = await fetch(fetchUrl, {
@@ -670,6 +670,7 @@ ${cleanedText}`;
 };
 
 export default Admin;
+
 
 
 
