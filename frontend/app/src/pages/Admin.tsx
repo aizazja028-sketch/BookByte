@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Loader2, Upload, BookOpen, Sparkles } from "lucide-react";
 import OpenAI from "openai";
 import { getAllBooks, type BookResponse } from "@/lib/eventsApi";
-
+const API = import.meta.env.VITE_BACKEND_URL;
 interface BookMetadata {
   title: string;
   author: string;
@@ -263,7 +263,7 @@ ${cleanedText}`;
         console.warn("Could not parse date, using default:", error);
       }
       
-      const bookResponse = await fetch("/api/backend/books/", {
+      const bookResponse = await fetch(`${API}/books/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -312,7 +312,7 @@ ${cleanedText}`;
         // Save paragraphs in parallel batches
         await Promise.all(
           batch.map(async (paragraph: string) => {
-            const response = await fetch("/api/backend/paragraphs/", {
+            const response = await fetch(`${API}/paragraphs/`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -410,7 +410,8 @@ ${cleanedText}`;
       // Use Vite's proxy in development
       // const proxyUrl = '/api/gutenberg';
       // const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
-      const fetchUrl='https://www.gutenberg.org/cache/epub/77400/pg77400.txt'
+      // const fetchUrl='https://www.gutenberg.org/cache/epub/77400/pg77400.txt'
+      let fetchUrl = `${import.meta.env.VITE_BACKEND_URL}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
       console.log("Fetching from:", fetchUrl);
       
       const response = await fetch(fetchUrl, {
@@ -669,6 +670,7 @@ ${cleanedText}`;
 };
 
 export default Admin;
+
 
 
 
