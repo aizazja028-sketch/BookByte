@@ -2,6 +2,9 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from .models import Book, Paragraph,UserIdentifier, Event
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.http import HttpResponse
+import requests
 
 import json
 import uuid
@@ -473,5 +476,6 @@ def proxy_gutenberg(request):
         return HttpResponse(response.content, content_type='text/plain')
     except requests.RequestException as e:
         return JsonResponse({'error': f'Failed to fetch: {str(e)}'}, status=500)
+
 
 
