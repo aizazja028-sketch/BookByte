@@ -178,7 +178,7 @@ ${cleanedText}`;
       toast.info(`Processing book with OpenAI... (${Math.round(charCount / 1000)}K characters)`);
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: "gpt-4o",
         messages: [
           {
             role: "user",
@@ -262,8 +262,7 @@ ${cleanedText}`;
       } catch (error) {
         console.warn("Could not parse date, using default:", error);
       }
-      
-      const bookResponse = await fetch(`${API}/books/`, {
+        const bookResponse = await fetch(`${API}/books/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -275,7 +274,7 @@ ${cleanedText}`;
           language: bookMetadata.language,
           source: bookMetadata.sourceUrl
         })
-      });
+          });
 
       if (!bookResponse.ok) {
         const errorText = await bookResponse.text();
@@ -800,6 +799,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 };
 
 export default Admin;
+
 
 
 
