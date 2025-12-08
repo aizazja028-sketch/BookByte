@@ -178,7 +178,7 @@ ${cleanedText}`;
       toast.info(`Processing book with OpenAI... (${Math.round(charCount / 1000)}K characters)`);
 
       const completion = await openai.chat.completions.create({
-        model: "o1",
+        model: "gpt-5.1",
         messages: [
           {
             role: "user",
@@ -800,6 +800,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 };
 
 export default Admin;
+
 
 
 
