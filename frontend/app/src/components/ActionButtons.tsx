@@ -165,14 +165,14 @@ export const ActionButtons = ({
     }
   };
 
-    return (
-    <div className="flex items-center justify-around gap-1 sm:gap-2 w-full">
+  return (
+    <div className="flex items-center justify-around gap-2 w-full">
       <Button
         variant="ghost"
         size="sm"
         onClick={handleHeart}
         disabled={loading}
-        className={`flex-1 gap-1 sm:gap-2 px-1 sm:px-3 py-2 h-9 rounded-full hover:bg-red-50 dark:hover:bg-red-950/30 transition-all group ${
+        className={`flex-1 sm:flex-none gap-2 px-2 sm:px-3 py-2 h-9 rounded-full hover:bg-red-50 dark:hover:bg-red-950/30 transition-all group ${
           isHearted ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-400' : 'text-muted-foreground hover:text-red-600'
         }`}
       >
@@ -185,7 +185,7 @@ export const ActionButtons = ({
         size="sm"
         onClick={handleLike}
         disabled={loading}
-        className={`flex-1 gap-1 sm:gap-2 px-1 sm:px-3 py-2 h-9 rounded-full hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-all group ${
+        className={`flex-1 sm:flex-none gap-2 px-2 sm:px-3 py-2 h-9 rounded-full hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-all group ${
           isLiked ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-400' : 'text-muted-foreground hover:text-blue-600'
         }`}
       >
@@ -198,7 +198,7 @@ export const ActionButtons = ({
         size="sm"
         onClick={handleDislike}
         disabled={loading}
-        className={`flex-1 gap-1 sm:gap-2 px-1 sm:px-3 py-2 h-9 rounded-full hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all group ${
+        className={`flex-1 sm:flex-none gap-2 px-2 sm:px-3 py-2 h-9 rounded-full hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all group ${
           isDisliked ? 'bg-orange-50 text-orange-600 hover:bg-orange-100 dark:bg-orange-950/50 dark:text-orange-400' : 'text-muted-foreground hover:text-orange-600'
         }`}
       >
@@ -211,7 +211,7 @@ export const ActionButtons = ({
         size="sm"
         onClick={handleBookmark}
         disabled={loading}
-        className={`flex-1 gap-1 sm:gap-2 px-1 sm:px-3 py-2 h-9 rounded-full hover:bg-green-50 dark:hover:bg-green-950/30 transition-all group ${
+        className={`flex-1 sm:flex-none gap-2 px-2 sm:px-3 py-2 h-9 rounded-full hover:bg-green-50 dark:hover:bg-green-950/30 transition-all group ${
           isBookmarked ? 'bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-950/50 dark:text-green-400' : 'text-muted-foreground hover:text-green-600'
         }`}
       >
@@ -223,7 +223,7 @@ export const ActionButtons = ({
         variant="ghost"
         size="sm"
         onClick={handleCopy}
-        className="flex-1 gap-1 sm:gap-2 px-1 sm:px-3 py-2 h-9 rounded-full hover:bg-muted transition-all group text-muted-foreground hover:text-foreground"
+        className="flex-1 sm:flex-none gap-2 px-2 sm:px-3 py-2 h-9 rounded-full hover:bg-muted transition-all group text-muted-foreground hover:text-foreground"
       >
         <Copy className="h-4 w-4 transition-transform group-hover:scale-110" />
         <span className="text-xs font-medium hidden sm:inline">Copy</span>
