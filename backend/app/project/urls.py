@@ -44,6 +44,7 @@ urlpatterns = [
     path('events/<uuid:event_id>/',views.event_detail,name='event-detail'),
     path('events/user/<uuid:user_id>/paragraph/<uuid:paragraph_id>/',views.get_user_paragraph_event,name='user-paragraph-event'),
     path('events/user/<str:user_identifier>/bookmarked-paragraphs/', views.get_user_bookmarked_paragraphs, name='user-bookmarked-paragraphs'),
-
+    path('proxy/gutenberg/', views.proxy_gutenberg, name='proxy-gutenberg'),
 
 ]
+
