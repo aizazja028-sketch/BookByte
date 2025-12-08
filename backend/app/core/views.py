@@ -454,3 +454,24 @@ def get_user_bookmarked_paragraphs(request, user_identifier):
             "has_previous": page > 1
         }
     }, safe=False)
+
+@require_http_methods(["GET"])
+def proxy_gutenberg(request):
+    """Proxy requests to Project Gutenberg to handle CORS"""
+    url = request.GET.get('url')
+    
+    if not url:
+        return JsonResponse({'error': 'Missing url parameter'}, status=400)
+    
+    # Validate it's a Gutenberg URL
+    if not url.startswith('https://www.gutenberg.org/'):
+        return JsonResponse({'error': 'Invalid URL'}, status=400)
+    
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        return HttpResponse(response.content, content_type='text/plain')
+    except requests.RequestException as e:
+        return JsonResponse({'error': f'Failed to fetch: {str(e)}'}, status=500)
+
+
