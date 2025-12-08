@@ -362,131 +362,261 @@ ${cleanedText}`;
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
     
-    if (!url.trim()) {
-      toast.error("Please enter a URL");
-      return;
-    }
+  //   if (!url.trim()) {
+  //     toast.error("Please enter a URL");
+  //     return;
+  //   }
 
-    // Validate URL format
-    let urlObj: URL;
-    try {
-      urlObj = new URL(url);
-    } catch {
-      toast.error("Please enter a valid URL");
-      return;
-    }
+  //   // Validate URL format
+  //   let urlObj: URL;
+  //   try {
+  //     urlObj = new URL(url);
+  //   } catch {
+  //     toast.error("Please enter a valid URL");
+  //     return;
+  //   }
 
-    // Validate that it's a Project Gutenberg URL
-    if (!url.startsWith("https://www.gutenberg.org/")) {
-      toast.error("Please enter a valid Project Gutenberg URL");
-      return;
-    }
+  //   // Validate that it's a Project Gutenberg URL
+  //   if (!url.startsWith("https://www.gutenberg.org/")) {
+  //     toast.error("Please enter a valid Project Gutenberg URL");
+  //     return;
+  //   }
 
-    let textUrl: string;
+  //   let textUrl: string;
     
-    // Check if it's a direct text file URL
-    const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
-    if (directTextMatch) {
-      // URL is already in the correct format
-      textUrl = url;
-    } else {
-      // Extract ebook number from /ebooks/ URL format
-      const ebookMatch = url.match(/\/ebooks\/(\d+)/);
-      if (!ebookMatch) {
-        toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
-        return;
-      }
+  //   // Check if it's a direct text file URL
+  //   const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
+  //   if (directTextMatch) {
+  //     // URL is already in the correct format
+  //     textUrl = url;
+  //   } else {
+  //     // Extract ebook number from /ebooks/ URL format
+  //     const ebookMatch = url.match(/\/ebooks\/(\d+)/);
+  //     if (!ebookMatch) {
+  //       toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
+  //       return;
+  //     }
 
-      const ebookNumber = ebookMatch[1];
-      textUrl = `https://www.gutenberg.org/cache/epub/${ebookNumber}/pg${ebookNumber}.txt`;
-    }
+  //     const ebookNumber = ebookMatch[1];
+  //     textUrl = `https://www.gutenberg.org/cache/epub/${ebookNumber}/pg${ebookNumber}.txt`;
+  //   }
 
-    setLoading(true);
+  //   setLoading(true);
     
-    try {
-      // Use Vite's proxy in development
-      // const proxyUrl = '/api/gutenberg';
-      // const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
-      const fetchUrl='https://www.gutenberg.org/cache/epub/77400/pg77400.txt'
-      // let fetchUrl = `${import.meta.env.VITE_BACKEND_URL}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
-      console.log("Fetching from:", fetchUrl);
+  //   try {
+  //     // Use Vite's proxy in development
+  //     // const proxyUrl = '/api/gutenberg';
+  //     // const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
+  //     const fetchUrl='https://www.gutenberg.org/cache/epub/77400/pg77400.txt'
+  //     // let fetchUrl = `${import.meta.env.VITE_BACKEND_URL}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
+  //     console.log("Fetching from:", fetchUrl);
       
-      const response = await fetch(fetchUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'text/plain',
-        },
-      });
+  //     const response = await fetch(fetchUrl, {
+  //       method: 'GET',
+  //       headers: {
+  //         'Accept': 'text/plain',
+  //       },
+  //     });
       
-      console.log("Response status:", response.status);
-      console.log("Response ok:", response.ok);
+  //     console.log("Response status:", response.status);
+  //     console.log("Response ok:", response.ok);
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch book: ${response.status} ${response.statusText}`);
-      }
+  //     if (!response.ok) {
+  //       throw new Error(`Failed to fetch book: ${response.status} ${response.statusText}`);
+  //     }
 
-      const bookText = await response.text();
+  //     const bookText = await response.text();
       
-      console.log("Book text received, length:", bookText.length);
-      console.log("First 200 characters:", bookText.substring(0, 700));
+  //     console.log("Book text received, length:", bookText.length);
+  //     console.log("First 200 characters:", bookText.substring(0, 700));
       
-      // Validate that we actually got book content
-      if (!bookText || bookText.length < 100) {
-        throw new Error("Received invalid or empty book content");
-      }
+  //     // Validate that we actually got book content
+  //     if (!bookText || bookText.length < 100) {
+  //       throw new Error("Received invalid or empty book content");
+  //     }
       
-      // Extract metadata
-      const metadata = extractBookMetadata(bookText, textUrl);
-      if (metadata) {
-        setBookMetadata(metadata);
-        console.log("Extracted metadata:", metadata);
+  //     // Extract metadata
+  //     const metadata = extractBookMetadata(bookText, textUrl);
+  //     if (metadata) {
+  //       setBookMetadata(metadata);
+  //       console.log("Extracted metadata:", metadata);
         
-        // Check if book already exists in database
-        const existingMatch = existingBooks.find(
-          book => book.source === textUrl || 
-                 (book.title.toLowerCase() === metadata.title.toLowerCase() && 
-                  book.author.toLowerCase() === metadata.author.toLowerCase())
-        );
+  //       // Check if book already exists in database
+  //       const existingMatch = existingBooks.find(
+  //         book => book.source === textUrl || 
+  //                (book.title.toLowerCase() === metadata.title.toLowerCase() && 
+  //                 book.author.toLowerCase() === metadata.author.toLowerCase())
+  //       );
         
-        if (existingMatch) {
-          setExistingBook(existingMatch);
-          toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
-            duration: 5000
-          });
-        } else {
-          setExistingBook(null);
-          toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
-        }
+  //       if (existingMatch) {
+  //         setExistingBook(existingMatch);
+  //         toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
+  //           duration: 5000
+  //         });
+  //       } else {
+  //         setExistingBook(null);
+  //         toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
+  //       }
+  //     } else {
+  //       toast.warning("Book fetched but could not extract all metadata");
+  //     }
+      
+  //     // Store the retrieved data
+  //     setBookData(bookText);
+      
+  //     // Reset processed book state when new book is loaded
+  //     setProcessedBook(null);
+      
+  //     console.log("Book data retrieved successfully. Total length:", bookText.length);
+  //     console.log("Book URL submitted:", url);
+  //     console.log("Text URL:", textUrl);
+      
+  //     setUrl("");
+  //   } catch (error) {
+  //     console.error("Error fetching book:", error);
+  //     console.error("Error details:", {
+  //       message: error instanceof Error ? error.message : 'Unknown error',
+  //       stack: error instanceof Error ? error.stack : undefined,
+  //     });
+  //     toast.error(error instanceof Error ? error.message : "Failed to fetch book");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+  const API = import.meta.env.VITE_BACKEND_URL;
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!url.trim()) {
+    toast.error("Please enter a URL");
+    return;
+  }
+
+  // Validate URL format
+  let urlObj: URL;
+  try {
+    urlObj = new URL(url);
+  } catch {
+    toast.error("Please enter a valid URL");
+    return;
+  }
+
+  // Validate that it's a Project Gutenberg URL
+  if (!url.startsWith("https://www.gutenberg.org/")) {
+    toast.error("Please enter a valid Project Gutenberg URL");
+    return;
+  }
+
+  let textUrl: string;
+  
+  // Check if it's a direct text file URL
+  const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
+  if (directTextMatch) {
+    // URL is already in the correct format
+    textUrl = url;
+  } else {
+    // Extract ebook number from /ebooks/ URL format
+    const ebookMatch = url.match(/\/ebooks\/(\d+)/);
+    if (!ebookMatch) {
+      toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
+      return;
+    }
+
+    const ebookNumber = ebookMatch[1];
+    textUrl = `https://www.gutenberg.org/cache/epub/${ebookNumber}/pg${ebookNumber}.txt`;
+  }
+
+  setLoading(true);
+  
+  try {
+    // Use backend proxy to handle CORS
+    const fetchUrl = `${API}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
+    
+    console.log("Fetching from proxy:", fetchUrl);
+    console.log("Original URL:", textUrl);
+    
+    const response = await fetch(fetchUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/plain',
+      },
+    });
+    
+    console.log("Response status:", response.status);
+    console.log("Response ok:", response.ok);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch book: ${response.status} - ${errorText}`);
+    }
+
+    const bookText = await response.text();
+    
+    console.log("Book text received, length:", bookText.length);
+    console.log("First 500 characters:", bookText.substring(0, 500));
+    
+    // Validate that we actually got book content
+    if (!bookText || bookText.length < 100) {
+      throw new Error("Received invalid or empty book content");
+    }
+    
+    // Extract metadata
+    const metadata = extractBookMetadata(bookText, textUrl);
+    if (metadata) {
+      setBookMetadata(metadata);
+      console.log("Extracted metadata:", metadata);
+      
+      // Check if book already exists in database
+      const existingMatch = existingBooks.find(
+        book => book.source === textUrl || 
+               (book.title.toLowerCase() === metadata.title.toLowerCase() && 
+                book.author.toLowerCase() === metadata.author.toLowerCase())
+      );
+      
+      if (existingMatch) {
+        setExistingBook(existingMatch);
+        toast.warning(`Book "${metadata.title}" by ${metadata.author} already exists in the database!`, {
+          duration: 5000
+        });
       } else {
-        toast.warning("Book fetched but could not extract all metadata");
+        setExistingBook(null);
+        toast.success(`Book "${metadata.title}" by ${metadata.author} fetched successfully!`);
       }
-      
-      // Store the retrieved data
-      setBookData(bookText);
-      
-      // Reset processed book state when new book is loaded
-      setProcessedBook(null);
-      
-      console.log("Book data retrieved successfully. Total length:", bookText.length);
-      console.log("Book URL submitted:", url);
-      console.log("Text URL:", textUrl);
-      
-      setUrl("");
-    } catch (error) {
-      console.error("Error fetching book:", error);
-      console.error("Error details:", {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      toast.error(error instanceof Error ? error.message : "Failed to fetch book");
-    } finally {
-      setLoading(false);
+    } else {
+      toast.warning("Book fetched but could not extract all metadata");
     }
-  };
+    
+    // Store the retrieved data
+    setBookData(bookText);
+    
+    // Reset processed book state when new book is loaded
+    setProcessedBook(null);
+    
+    console.log("Book data retrieved successfully. Total length:", bookText.length);
+    console.log("Book URL submitted:", url);
+    console.log("Text URL:", textUrl);
+    
+    setUrl("");
+  } catch (error) {
+    console.error("Error fetching book:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    toast.error(error instanceof Error ? error.message : "Failed to fetch book");
+  } finally {
+    setLoading(false);
+  }
+};
 
+
+
+
+  
   return (
     <div className="min-h-screen bg-[var(--gradient-warm)]">
       {/* Header */}
@@ -670,6 +800,7 @@ ${cleanedText}`;
 };
 
 export default Admin;
+
 
 
 
