@@ -184,8 +184,7 @@ ${cleanedText}`;
             role: "user",
             content: prompt
           }
-        ],
-        max_completion_tokens: 100000  
+        ], 
       });
       
       const text = completion.choices[0].message.content || "";
@@ -799,6 +798,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 };
 
 export default Admin;
+
 
 
 
