@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Loader2, Upload, BookOpen, Sparkles } from "lucide-react";
 import OpenAI from "openai";
 import { getAllBooks, type BookResponse } from "@/lib/eventsApi";
-const API = import.meta.env.VITE_BACKEND_URL;
+
 interface BookMetadata {
   title: string;
   author: string;
@@ -21,6 +21,20 @@ interface ProcessedBook {
   paragraphs: string[];
   processedAt: string;
 }
+
+// Helper function to split text into chunks
+const splitTextIntoChunks = (text: string, chunkSize: number = 200000): string[] => {
+  const chunks: string[] = [];
+  let currentIndex = 0;
+
+  while (currentIndex < text.length) {
+    const chunk = text.substring(currentIndex, currentIndex + chunkSize);
+    chunks.push(chunk);
+    currentIndex += chunkSize;
+  }
+
+  return chunks;
+};
 
 const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata | null => {
   try {
@@ -141,7 +155,26 @@ const Admin = () => {
         cleanedText = cleanedText.substring(cleanedText.indexOf('\n') + 1);
       }
 
-      const prompt = `You are a text processing assistant. Analyze the following book text and extract all paragraphs.
+      // Split text into chunks if larger than 200k
+      const chunks = splitTextIntoChunks(cleanedText, 200000);
+      const totalChunks = chunks.length;
+      
+      console.log(`Book size: ${cleanedText.length} characters, split into ${totalChunks} chunk(s)`);
+      
+      if (totalChunks > 1) {
+        toast.info(`Processing large book in ${totalChunks} chunks...`);
+      }
+
+      // Process all chunks and collect paragraphs
+      const allParagraphs: string[] = [];
+
+      for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        const chunk = chunks[chunkIndex];
+        setProcessingStatus(`Processing chunk ${chunkIndex + 1}/${totalChunks} with OpenAI...`);
+        
+        toast.info(`Processing chunk ${chunkIndex + 1}/${totalChunks} (${Math.round(chunk.length / 1000)}K characters)...`);
+
+        const prompt = `You are a text processing assistant. Analyze the following book text and extract all paragraphs.
 
 CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
 1. Each paragraph MUST be between 3-7 sentences (NO MORE, NO LESS)
@@ -169,76 +202,72 @@ Return ONLY a valid JSON object in this exact format with no additional text:
   ]
 }
 
-Book text:
-${cleanedText}`;
+Book text (Chunk ${chunkIndex + 1}/${totalChunks}):
+${chunk}`;
 
-      console.log("Sending to OpenAI, text length:", cleanedText.length);
-      const charCount = cleanedText.length;
-      setProcessingStatus("Processing with OpenAI...");
-      toast.info(`Processing book with OpenAI... (${Math.round(charCount / 1000)}K characters)`);
+        console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}, text length: ${chunk.length}`);
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_completion_tokens: 100000  
-      });
-      
-      const text = completion.choices[0].message.content || "";
-      const finishReason = completion.choices[0].finish_reason;
-      
-      console.log("OpenAI response length:", text.length);
-      console.log("OpenAI finish reason:", finishReason);
-      console.log("OpenAI response preview:", text.substring(0, 500));
-      
-      // Check if response was truncated
-      if (finishReason === "length") {
-        throw new Error("OpenAI response was truncated due to token limit. Try processing a shorter book or splitting it into sections.");
-      }
+        const completion = await openai.chat.completions.create({
+          model: "o1",
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          max_completion_tokens: 100000
+        });
 
-      // Parse JSON response - the response should already be valid JSON due to response_format
-      let parsedResponse;
-      try {
-        // Since we're using response_format: { type: "json_object" }, the content should be valid JSON
-        parsedResponse = JSON.parse(text);
-      } catch (parseError) {
-        console.error("Failed to parse JSON directly, trying alternative extraction:", parseError);
-        
-        // Fallback: try to extract JSON from markdown code blocks
-        let jsonText = text;
-        
-        if (text.includes('```json')) {
-          const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[1];
-          }
-        } else if (text.includes('```')) {
-          const jsonMatch = text.match(/```\s*([\s\S]*?)\s*```/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[1];
-          }
+        const text = completion.choices[0].message.content || "";
+        const finishReason = completion.choices[0].finish_reason;
+
+        console.log(`Chunk ${chunkIndex + 1} response length:`, text.length);
+        console.log(`Chunk ${chunkIndex + 1} finish reason:`, finishReason);
+
+        if (finishReason === "length") {
+          throw new Error(`Chunk ${chunkIndex + 1} response was truncated due to token limit. Try a shorter chunk size.`);
         }
-        
-        // Try to extract JSON object
-        const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/);
-        if (!jsonObjectMatch) {
-          console.error("Full response text:", text);
-          throw new Error("Could not extract JSON from OpenAI response");
+
+        // Parse JSON response
+        let parsedResponse;
+        try {
+          parsedResponse = JSON.parse(text);
+        } catch (parseError) {
+          console.error(`Failed to parse JSON for chunk ${chunkIndex + 1}, trying alternative extraction:`, parseError);
+
+          let jsonText = text;
+
+          if (text.includes('```json')) {
+            const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+            if (jsonMatch) {
+              jsonText = jsonMatch[1];
+            }
+          } else if (text.includes('```')) {
+            const jsonMatch = text.match(/```\s*([\s\S]*?)\s*```/);
+            if (jsonMatch) {
+              jsonText = jsonMatch[1];
+            }
+          }
+
+          const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/);
+          if (!jsonObjectMatch) {
+            console.error(`Full response text for chunk ${chunkIndex + 1}:`, text);
+            throw new Error(`Could not extract JSON from OpenAI response for chunk ${chunkIndex + 1}`);
+          }
+
+          parsedResponse = JSON.parse(jsonObjectMatch[0]);
         }
-        
-        parsedResponse = JSON.parse(jsonObjectMatch[0]);
-      }
-      
-      if (!parsedResponse.paragraphs || !Array.isArray(parsedResponse.paragraphs)) {
-        throw new Error("Invalid response format from OpenAI - missing paragraphs array");
+
+        if (!parsedResponse.paragraphs || !Array.isArray(parsedResponse.paragraphs)) {
+          throw new Error(`Invalid response format from OpenAI for chunk ${chunkIndex + 1} - missing paragraphs array`);
+        }
+
+        console.log(`Chunk ${chunkIndex + 1} extracted ${parsedResponse.paragraphs.length} paragraphs`);
+        allParagraphs.push(...parsedResponse.paragraphs);
       }
 
-      console.log(`Extracted ${parsedResponse.paragraphs.length} paragraphs`);
-      
+      console.log(`Total paragraphs extracted from all chunks: ${allParagraphs.length}`);
+
       // Step 1: Save the book to the backend
       setProcessingStatus("Saving book metadata to database...");
       toast.info("Saving book to database...");
@@ -262,7 +291,8 @@ ${cleanedText}`;
       } catch (error) {
         console.warn("Could not parse date, using default:", error);
       }
-        const bookResponse = await fetch(`${API}/books/`, {
+      
+      const bookResponse = await fetch("/api/backend/books/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -274,7 +304,7 @@ ${cleanedText}`;
           language: bookMetadata.language,
           source: bookMetadata.sourceUrl
         })
-          });
+      });
 
       if (!bookResponse.ok) {
         const errorText = await bookResponse.text();
@@ -299,19 +329,19 @@ ${cleanedText}`;
       toast.success(`Book saved! ID: ${bookId}`);
       
       // Step 2: Save all paragraphs
-      setProcessingStatus(`Saving paragraphs to database (0/${parsedResponse.paragraphs.length})...`);
-      toast.info(`Saving ${parsedResponse.paragraphs.length} paragraphs...`);
+      setProcessingStatus(`Saving paragraphs to database (0/${allParagraphs.length})...`);
+      toast.info(`Saving ${allParagraphs.length} paragraphs...`);
       
       let savedCount = 0;
       const batchSize = 10; // Save in batches to show progress
       
-      for (let i = 0; i < parsedResponse.paragraphs.length; i += batchSize) {
-        const batch = parsedResponse.paragraphs.slice(i, i + batchSize);
+      for (let i = 0; i < allParagraphs.length; i += batchSize) {
+        const batch = allParagraphs.slice(i, i + batchSize);
         
         // Save paragraphs in parallel batches
         await Promise.all(
           batch.map(async (paragraph: string) => {
-            const response = await fetch(`${API}/paragraphs/`, {
+            const response = await fetch("/api/backend/paragraphs/", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -327,14 +357,14 @@ ${cleanedText}`;
             }
             
             savedCount++;
-            setProcessingStatus(`Saving paragraphs to database (${savedCount}/${parsedResponse.paragraphs.length})...`);
+            setProcessingStatus(`Saving paragraphs to database (${savedCount}/${allParagraphs.length})...`);
           })
         );
       }
 
       const processedBookData: ProcessedBook = {
         metadata: bookMetadata,
-        paragraphs: parsedResponse.paragraphs,
+        paragraphs: allParagraphs,
         processedAt: new Date().toISOString()
       };
 
@@ -349,273 +379,142 @@ ${cleanedText}`;
       }
 
       clearInterval(timerInterval);
-      toast.success(`Book processed and saved! ${parsedResponse.paragraphs.length} paragraphs saved to database.`);
+      toast.success(`Book processed and saved! ${allParagraphs.length} paragraphs saved to database (${totalChunks} chunk(s) processed).`);
       console.log("Processed book:", processedBookData);
     } catch (error) {
       clearInterval(timerInterval);
       console.error("Error processing book:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to process book with Gemini");
+      toast.error(error instanceof Error ? error.message : "Failed to process book with OpenAI");
     } finally {
       setProcessing(false);
       setProcessingStatus("");
     }
   };
 
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-  //   if (!url.trim()) {
-  //     toast.error("Please enter a URL");
-  //     return;
-  //   }
-
-  //   // Validate URL format
-  //   let urlObj: URL;
-  //   try {
-  //     urlObj = new URL(url);
-  //   } catch {
-  //     toast.error("Please enter a valid URL");
-  //     return;
-  //   }
-
-  //   // Validate that it's a Project Gutenberg URL
-  //   if (!url.startsWith("https://www.gutenberg.org/")) {
-  //     toast.error("Please enter a valid Project Gutenberg URL");
-  //     return;
-  //   }
-
-  //   let textUrl: string;
-    
-  //   // Check if it's a direct text file URL
-  //   const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
-  //   if (directTextMatch) {
-  //     // URL is already in the correct format
-  //     textUrl = url;
-  //   } else {
-  //     // Extract ebook number from /ebooks/ URL format
-  //     const ebookMatch = url.match(/\/ebooks\/(\d+)/);
-  //     if (!ebookMatch) {
-  //       toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
-  //       return;
-  //     }
-
-  //     const ebookNumber = ebookMatch[1];
-  //     textUrl = `https://www.gutenberg.org/cache/epub/${ebookNumber}/pg${ebookNumber}.txt`;
-  //   }
-
-  //   setLoading(true);
-    
-  //   try {
-  //     // Use Vite's proxy in development
-  //     // const proxyUrl = '/api/gutenberg';
-  //     // const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
-  //     const fetchUrl='https://www.gutenberg.org/cache/epub/77400/pg77400.txt'
-  //     // let fetchUrl = `${import.meta.env.VITE_BACKEND_URL}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
-  //     console.log("Fetching from:", fetchUrl);
-      
-  //     const response = await fetch(fetchUrl, {
-  //       method: 'GET',
-  //       headers: {
-  //         'Accept': 'text/plain',
-  //       },
-  //     });
-      
-  //     console.log("Response status:", response.status);
-  //     console.log("Response ok:", response.ok);
-      
-  //     if (!response.ok) {
-  //       throw new Error(`Failed to fetch book: ${response.status} ${response.statusText}`);
-  //     }
-
-  //     const bookText = await response.text();
-      
-  //     console.log("Book text received, length:", bookText.length);
-  //     console.log("First 200 characters:", bookText.substring(0, 700));
-      
-  //     // Validate that we actually got book content
-  //     if (!bookText || bookText.length < 100) {
-  //       throw new Error("Received invalid or empty book content");
-  //     }
-      
-  //     // Extract metadata
-  //     const metadata = extractBookMetadata(bookText, textUrl);
-  //     if (metadata) {
-  //       setBookMetadata(metadata);
-  //       console.log("Extracted metadata:", metadata);
-        
-  //       // Check if book already exists in database
-  //       const existingMatch = existingBooks.find(
-  //         book => book.source === textUrl || 
-  //                (book.title.toLowerCase() === metadata.title.toLowerCase() && 
-  //                 book.author.toLowerCase() === metadata.author.toLowerCase())
-  //       );
-        
-  //       if (existingMatch) {
-  //         setExistingBook(existingMatch);
-  //         toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
-  //           duration: 5000
-  //         });
-  //       } else {
-  //         setExistingBook(null);
-  //         toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
-  //       }
-  //     } else {
-  //       toast.warning("Book fetched but could not extract all metadata");
-  //     }
-      
-  //     // Store the retrieved data
-  //     setBookData(bookText);
-      
-  //     // Reset processed book state when new book is loaded
-  //     setProcessedBook(null);
-      
-  //     console.log("Book data retrieved successfully. Total length:", bookText.length);
-  //     console.log("Book URL submitted:", url);
-  //     console.log("Text URL:", textUrl);
-      
-  //     setUrl("");
-  //   } catch (error) {
-  //     console.error("Error fetching book:", error);
-  //     console.error("Error details:", {
-  //       message: error instanceof Error ? error.message : 'Unknown error',
-  //       stack: error instanceof Error ? error.stack : undefined,
-  //     });
-  //     toast.error(error instanceof Error ? error.message : "Failed to fetch book");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-  const API = import.meta.env.VITE_BACKEND_URL;
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!url.trim()) {
-    toast.error("Please enter a URL");
-    return;
-  }
-
-  // Validate URL format
-  let urlObj: URL;
-  try {
-    urlObj = new URL(url);
-  } catch {
-    toast.error("Please enter a valid URL");
-    return;
-  }
-
-  // Validate that it's a Project Gutenberg URL
-  if (!url.startsWith("https://www.gutenberg.org/")) {
-    toast.error("Please enter a valid Project Gutenberg URL");
-    return;
-  }
-
-  let textUrl: string;
-  
-  // Check if it's a direct text file URL
-  const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
-  if (directTextMatch) {
-    // URL is already in the correct format
-    textUrl = url;
-  } else {
-    // Extract ebook number from /ebooks/ URL format
-    const ebookMatch = url.match(/\/ebooks\/(\d+)/);
-    if (!ebookMatch) {
-      toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
+    if (!url.trim()) {
+      toast.error("Please enter a URL");
       return;
     }
 
-    const ebookNumber = ebookMatch[1];
-    textUrl = `https://www.gutenberg.org/cache/epub/${ebookNumber}/pg${ebookNumber}.txt`;
-  }
-
-  setLoading(true);
-  
-  try {
-    // Use backend proxy to handle CORS
-    const fetchUrl = `${API}/proxy/gutenberg/?url=${encodeURIComponent(textUrl)}`;
-    
-    console.log("Fetching from proxy:", fetchUrl);
-    console.log("Original URL:", textUrl);
-    
-    const response = await fetch(fetchUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'text/plain',
-      },
-    });
-    
-    console.log("Response status:", response.status);
-    console.log("Response ok:", response.ok);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch book: ${response.status} - ${errorText}`);
+    // Validate URL format
+    let urlObj: URL;
+    try {
+      urlObj = new URL(url);
+    } catch {
+      toast.error("Please enter a valid URL");
+      return;
     }
 
-    const bookText = await response.text();
-    
-    console.log("Book text received, length:", bookText.length);
-    console.log("First 500 characters:", bookText.substring(0, 500));
-    
-    // Validate that we actually got book content
-    if (!bookText || bookText.length < 100) {
-      throw new Error("Received invalid or empty book content");
+    // Validate that it's a Project Gutenberg URL
+    if (!url.startsWith("https://www.gutenberg.org/")) {
+      toast.error("Please enter a valid Project Gutenberg URL");
+      return;
     }
+
+    let textUrl: string;
     
-    // Extract metadata
-    const metadata = extractBookMetadata(bookText, textUrl);
-    if (metadata) {
-      setBookMetadata(metadata);
-      console.log("Extracted metadata:", metadata);
-      
-      // Check if book already exists in database
-      const existingMatch = existingBooks.find(
-        book => book.source === textUrl || 
-               (book.title.toLowerCase() === metadata.title.toLowerCase() && 
-                book.author.toLowerCase() === metadata.author.toLowerCase())
-      );
-      
-      if (existingMatch) {
-        setExistingBook(existingMatch);
-        toast.warning(`Book "${metadata.title}" by ${metadata.author} already exists in the database!`, {
-          duration: 5000
-        });
-      } else {
-        setExistingBook(null);
-        toast.success(`Book "${metadata.title}" by ${metadata.author} fetched successfully!`);
-      }
+    // Check if it's a direct text file URL
+    const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
+    if (directTextMatch) {
+      // URL is already in the correct format
+      textUrl = url;
     } else {
-      toast.warning("Book fetched but could not extract all metadata");
+      // Extract ebook number from /ebooks/ URL format
+      const ebookMatch = url.match(/\/ebooks\/(\d+)/);
+      if (!ebookMatch) {
+        toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
+        return;
+      }
+
+      const ebookNumber = ebookMatch[1];
+      textUrl = `https://www.gutenberg.org/cache/epub/${ebookNumber}/pg${ebookNumber}.txt`;
     }
-    
-    // Store the retrieved data
-    setBookData(bookText);
-    
-    // Reset processed book state when new book is loaded
-    setProcessedBook(null);
-    
-    console.log("Book data retrieved successfully. Total length:", bookText.length);
-    console.log("Book URL submitted:", url);
-    console.log("Text URL:", textUrl);
-    
-    setUrl("");
-  } catch (error) {
-    console.error("Error fetching book:", error);
-    console.error("Error details:", {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-    toast.error(error instanceof Error ? error.message : "Failed to fetch book");
-  } finally {
-    setLoading(false);
-  }
-};
 
+    setLoading(true);
+    
+    try {
+      // Use Vite's proxy in development
+      const proxyUrl = '/api/gutenberg';
+      const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
+      
+      console.log("Fetching from:", fetchUrl);
+      
+      const response = await fetch(fetchUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/plain',
+        },
+      });
+      
+      console.log("Response status:", response.status);
+      console.log("Response ok:", response.ok);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch book: ${response.status} ${response.statusText}`);
+      }
 
+      const bookText = await response.text();
+      
+      console.log("Book text received, length:", bookText.length);
+      console.log("First 200 characters:", bookText.substring(0, 700));
+      
+      // Validate that we actually got book content
+      if (!bookText || bookText.length < 100) {
+        throw new Error("Received invalid or empty book content");
+      }
+      
+      // Extract metadata
+      const metadata = extractBookMetadata(bookText, textUrl);
+      if (metadata) {
+        setBookMetadata(metadata);
+        console.log("Extracted metadata:", metadata);
+        
+        // Check if book already exists in database
+        const existingMatch = existingBooks.find(
+          book => book.source === textUrl || 
+                 (book.title.toLowerCase() === metadata.title.toLowerCase() && 
+                  book.author.toLowerCase() === metadata.author.toLowerCase())
+        );
+        
+        if (existingMatch) {
+          setExistingBook(existingMatch);
+          toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
+            duration: 5000
+          });
+        } else {
+          setExistingBook(null);
+          toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
+        }
+      } else {
+        toast.warning("Book fetched but could not extract all metadata");
+      }
+      
+      // Store the retrieved data
+      setBookData(bookText);
+      
+      // Reset processed book state when new book is loaded
+      setProcessedBook(null);
+      
+      console.log("Book data retrieved successfully. Total length:", bookText.length);
+      console.log("Book URL submitted:", url);
+      console.log("Text URL:", textUrl);
+      
+      setUrl("");
+    } catch (error) {
+      console.error("Error fetching book:", error);
+      console.error("Error details:", {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      toast.error(error instanceof Error ? error.message : "Failed to fetch book");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-
-  
   return (
     <div className="min-h-screen bg-[var(--gradient-warm)]">
       {/* Header */}
@@ -799,13 +698,3 @@ const handleSubmit = async (e: React.FormEvent) => {
 };
 
 export default Admin;
-
-
-
-
-
-
-
-
-
-
