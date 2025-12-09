@@ -8,23 +8,7 @@ import { Loader2, Upload, BookOpen, Sparkles } from "lucide-react";
 import OpenAI from "openai";
 import { getAllBooks, type BookResponse } from "@/lib/eventsApi";
 
-const API = import.meta.env.VITE_BACKEND_URL;
-
-interface BookMetadata {
-  title: string;
-  author: string;
-  releaseDate: string;
-  language: string;
-  sourceUrl: string;
-}
-
-interface ProcessedBook {
-  metadata: BookMetadata;
-  paragraphs: string[];
-  processedAt: string;
-}
-
-// Helper function to split text into chunks
+// Helper function to split text into chunks of a maximum size
 const splitTextIntoChunks = (text: string, chunkSize: number = 200000): string[] => {
   const chunks: string[] = [];
   let currentIndex = 0;
@@ -38,38 +22,8 @@ const splitTextIntoChunks = (text: string, chunkSize: number = 200000): string[]
   return chunks;
 };
 
-// Function to clean text by removing unnecessary headers and footers
-const cleanText = (text: string) => {
-  const startMarker = "*** START OF THE PROJECT GUTENBERG EBOOK";
-  const endMarker = "*** END OF THE PROJECT GUTENBERG EBOOK";
-  
-  const startIndex = text.indexOf(startMarker);
-  const endIndex = text.indexOf(endMarker);
-  
-  if (startIndex !== -1 && endIndex !== -1) {
-    return text.substring(startIndex, endIndex).substring(text.indexOf('\n') + 1);
-  }
-
-  return text;
-};
-
-// Helper function to create OpenAI prompt
-const createProcessingPrompt = (chunk: string, chunkIndex: number, totalChunks: number) => {
-  return `
-  You are a text processing assistant. Analyze the following book text and extract all paragraphs.
-  CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
-  1. Each paragraph MUST be between 3-7 sentences (NO MORE, NO LESS).
-  2. Each paragraph must be in separate quotes with commas between them.
-  3. Never modify the text. Return the paragraphs as they are.
-  4. Skip empty lines, page numbers, headers, footers, chapter titles.
-  5. Return ONLY a JSON array containing the paragraphs, no extra text.
-  Book text (Chunk ${chunkIndex + 1}/${totalChunks}):
-  ${chunk}
-  `;
-};
-
-// Function to extract metadata from book text
-const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata | null => {
+// Function to extract metadata from the fetched book text
+const extractBookMetadata = (bookText: string, sourceUrl: string) => {
   try {
     const metadataEndMarker = bookText.indexOf("*** START OF");
     if (metadataEndMarker !== -1) {
@@ -98,13 +52,11 @@ const Admin = () => {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [bookData, setBookData] = useState<string | null>(null);
-  const [bookMetadata, setBookMetadata] = useState<BookMetadata | null>(null);
+  const [bookMetadata, setBookMetadata] = useState<any | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [processedBook, setProcessedBook] = useState<ProcessedBook | null>(null);
-  const [processingTime, setProcessingTime] = useState(0);
+  const [processedBook, setProcessedBook] = useState<any | null>(null);
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [existingBooks, setExistingBooks] = useState<BookResponse[]>([]);
-  const [existingBook, setExistingBook] = useState<BookResponse | null>(null);
 
   // Load existing books on mount
   useEffect(() => {
@@ -120,15 +72,10 @@ const Admin = () => {
     loadBooks();
   }, []);
 
-  // Process book using Gemini (OpenAI)
+  // Process the book data into chunks and generate paragraphs using OpenAI
   const processBookWithGemini = async () => {
     if (!bookData || !bookMetadata) {
       toast.error("Please fetch a book first");
-      return;
-    }
-
-    if (existingBook) {
-      toast.error(`This book already exists in the database (ID: ${existingBook.id}). Cannot add duplicate books.`);
       return;
     }
 
@@ -139,14 +86,11 @@ const Admin = () => {
     }
 
     setProcessing(true);
-    setProcessingTime(0);
     setProcessingStatus("Initializing...");
 
-    const startTime = Date.now();
-    const timerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      setProcessingTime(elapsed);
-    }, 1000);
+    const chunks = splitTextIntoChunks(bookData, 200000);
+    const totalChunks = chunks.length;
+    const allParagraphs: string[] = [];
 
     try {
       const openai = new OpenAI({
@@ -154,36 +98,29 @@ const Admin = () => {
         dangerouslyAllowBrowser: true
       });
 
-      // Clean the book content
-      const cleanedText = cleanText(bookData);
-
-      // Split text into chunks if larger than 200k
-      const chunks = splitTextIntoChunks(cleanedText, 200000);
-      const totalChunks = chunks.length;
-
-      if (totalChunks > 1) {
-        toast.info(`Processing large book in ${totalChunks} chunks...`);
-      }
-
-      const allParagraphs: string[] = [];
-
-      for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      // Loop through each chunk and process with OpenAI
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
         const chunk = chunks[chunkIndex];
-        setProcessingStatus(`Processing chunk ${chunkIndex + 1}/${totalChunks} with OpenAI...`);
+        setProcessingStatus(`Processing chunk ${chunkIndex + 1}/${totalChunks}...`);
         toast.info(`Processing chunk ${chunkIndex + 1}/${totalChunks} (${Math.round(chunk.length / 1000)}K characters)...`);
 
-        const prompt = createProcessingPrompt(chunk, chunkIndex + 1, totalChunks);
+        const prompt = `
+          You are a text processing assistant. Analyze the following book text and extract all paragraphs.
+          CRITICAL REQUIREMENTS:
+          1. Each paragraph must be between 3-7 sentences (NO MORE, NO LESS).
+          2. Paragraphs must not exceed 7 sentences.
+          3. Skip any page numbers, headers, footers, or extra information.
+          4. Return only valid paragraphs, no extra text.
+        
+          Book text (Chunk ${chunkIndex + 1}/${totalChunks}):
+          ${chunk}
+        `;
 
-        // Call OpenAI API
+        // Call OpenAI API to process the chunk
         const completion = await openai.chat.completions.create({
-          model: "o1",
-          messages: [
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          max_completion_tokens: 100000
+          model: "gpt-3.5-turbo", // Choose a model like GPT-3.5
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 100000
         });
 
         const text = completion.choices[0].message.content || "";
@@ -192,23 +129,21 @@ const Admin = () => {
         try {
           parsedResponse = JSON.parse(text);
         } catch (parseError) {
-          console.error(`Failed to parse JSON for chunk ${chunkIndex + 1}`, parseError);
+          console.error(`Failed to parse JSON for chunk ${chunkIndex + 1}:`, parseError);
           throw new Error(`Failed to parse response for chunk ${chunkIndex + 1}`);
         }
 
         if (!parsedResponse.paragraphs || !Array.isArray(parsedResponse.paragraphs)) {
-          throw new Error(`Invalid response format for chunk ${chunkIndex + 1} - missing paragraphs`);
+          throw new Error(`Invalid response format for chunk ${chunkIndex + 1}`);
         }
 
         allParagraphs.push(...parsedResponse.paragraphs);
       }
 
-      // Step 1: Save the book metadata to the backend
+      // Save the book to the backend
       const bookResponse = await fetch("/api/backend/books/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: bookMetadata.title,
           author: bookMetadata.author,
@@ -223,40 +158,33 @@ const Admin = () => {
 
       toast.success(`Book saved! ID: ${bookId}`);
 
-      // Step 2: Save paragraphs to the backend
+      // Save paragraphs to the backend
       let savedCount = 0;
-      const batchSize = 10;
-      for (let i = 0; i < allParagraphs.length; i += batchSize) {
-        const batch = allParagraphs.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map(async (paragraph: string) => {
-            const response = await fetch("/api/backend/paragraphs/", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                book_id: bookId,
-                content: paragraph
-              })
-            });
+      for (let i = 0; i < allParagraphs.length; i++) {
+        const paragraph = allParagraphs[i];
+        const response = await fetch("/api/backend/paragraphs/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ book_id: bookId, content: paragraph })
+        });
 
-            if (!response.ok) {
-              console.error(`Failed to save paragraph: ${response.status}`);
-            }
+        if (!response.ok) {
+          console.error(`Failed to save paragraph: ${response.status}`);
+        }
 
-            savedCount++;
-            setProcessingStatus(`Saving paragraphs to database (${savedCount}/${allParagraphs.length})...`);
-          })
-        );
+        savedCount++;
+        setProcessingStatus(`Saving paragraphs to database (${savedCount}/${allParagraphs.length})...`);
       }
 
       toast.success(`Book processed and saved! ${allParagraphs.length} paragraphs saved to the database.`);
-      clearInterval(timerInterval);
+      setProcessedBook({
+        metadata: bookMetadata,
+        paragraphs: allParagraphs,
+        processedAt: new Date().toISOString()
+      });
     } catch (error) {
-      clearInterval(timerInterval);
       console.error("Error processing book:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to process book with OpenAI");
+      toast.error("Failed to process the book.");
     } finally {
       setProcessing(false);
       setProcessingStatus("");
@@ -285,70 +213,25 @@ const Admin = () => {
       return;
     }
 
-    let textUrl: string;
-
-    const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
-    if (directTextMatch) {
-      textUrl = url;
-    } else {
-      const ebookMatch = url.match(/\/ebooks\/(\d+)/);
-      if (!ebookMatch) {
-        toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
-        return;
-      }
-
-      const ebookNumber = ebookMatch[1];
-      textUrl = `https://www.gutenberg.org/cache/epub/${ebookNumber}/pg${ebookNumber}.txt`;
-    }
+    const textUrl = `https://www.gutenberg.org/cache/epub/${urlObj.pathname.split("/")[2]}/pg${urlObj.pathname.split("/")[2]}.txt`;
 
     setLoading(true);
 
     try {
-      const proxyUrl = '/api/gutenberg';
-      const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
-
-      const response = await fetch(fetchUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'text/plain',
-        },
-      });
+      const response = await fetch(textUrl, { method: "GET", headers: { Accept: "text/plain" } });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch book: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch book: ${response.status}`);
       }
 
       const bookText = await response.text();
-
-      if (!bookText || bookText.length < 100) {
-        throw new Error("Received invalid or empty book content");
-      }
-
       const metadata = extractBookMetadata(bookText, textUrl);
       setBookMetadata(metadata);
-
-      const existingMatch = existingBooks.find(
-        book => book.source === textUrl || 
-               (book.title.toLowerCase() === metadata.title.toLowerCase() && 
-                book.author.toLowerCase() === metadata.author.toLowerCase())
-      );
-
-      if (existingMatch) {
-        setExistingBook(existingMatch);
-        toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
-          duration: 5000
-        });
-      } else {
-        setExistingBook(null);
-        toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
-      }
-
       setBookData(bookText);
-      setProcessedBook(null);
-
+      toast.success(`Book "${metadata.title}" by ${metadata.author} fetched successfully!`);
     } catch (error) {
       console.error("Error fetching book:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to fetch book");
+      toast.error("Failed to fetch the book.");
     } finally {
       setLoading(false);
     }
@@ -361,9 +244,7 @@ const Admin = () => {
         <h1 className="text-5xl font-bold text-foreground mb-2">
           Admin Panel
         </h1>
-        <p className="text-muted-foreground text-lg">
-          Upload books to the database
-        </p>
+        <p className="text-muted-foreground text-lg">Upload books to the database</p>
       </header>
 
       {/* Main Content */}
@@ -374,9 +255,7 @@ const Admin = () => {
               <BookOpen className="h-6 w-6" />
               Upload Book URL
             </CardTitle>
-            <CardDescription>
-              Enter the URL of a book to add it to the database
-            </CardDescription>
+            <CardDescription>Enter the URL of a book to add it to the database</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -385,22 +264,16 @@ const Admin = () => {
                 <Input
                   id="bookUrl"
                   type="url"
-                  placeholder="https://example.com/book.txt"
+                  placeholder="https://www.gutenberg.org/ebooks/52206"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   disabled={loading}
                   className="w-full"
                 />
-                <p className="text-sm text-muted-foreground">
-                  Enter the complete URL to the book file
-                </p>
+                <p className="text-sm text-muted-foreground">Enter the complete URL to the book file</p>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={loading}
-              >
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -417,123 +290,42 @@ const Admin = () => {
           </CardContent>
         </Card>
 
-        {/* Display Book Metadata */}
+        {/* Book Metadata */}
         {bookMetadata && (
-          <Card className={`mt-6 ${existingBook ? 'border-orange-500 border-2' : ''}`}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Book Information
-                {existingBook && (
-                  <span className="text-sm font-normal text-orange-600 bg-orange-100 px-2 py-1 rounded dark:bg-orange-950 dark:text-orange-400">
-                    Already Exists
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Extracted metadata from the fetched book
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <Label className="font-semibold">Title:</Label>
-                <p className="text-sm mt-1">{bookMetadata.title}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Author:</Label>
-                <p className="text-sm mt-1">{bookMetadata.author}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Release Date:</Label>
-                <p className="text-sm mt-1">{bookMetadata.releaseDate}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Language:</Label>
-                <p className="text-sm mt-1">{bookMetadata.language}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Source URL:</Label>
-                <p className="text-sm mt-1 break-all">{bookMetadata.sourceUrl}</p>
-              </div>
-              {bookData && (
-                <div>
-                  <Label className="font-semibold">Size:</Label>
-                  <p className="text-sm mt-1">{Math.round(bookData.length / 1024)} KB</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Process with Gemini Button */}
-        {bookMetadata && bookData && !processedBook && (
-          <Card className="mt-6">
-            <CardContent className="pt-6">
-              {existingBook && (
-                <p className="text-sm text-orange-600 mb-3 dark:text-orange-400">
-                  ⚠️ This book already exists in the database and cannot be processed again.
-                </p>
-              )}
-              <Button 
-                onClick={processBookWithGemini}
-                disabled={processing || existingBook !== null}
-                className="w-full"
-              >
-                {processing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {processingStatus || `Processing... (${processingTime}s)`}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Process Book & Save to Database
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Display Processed Results */}
-        {processedBook && (
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Processing Complete!</CardTitle>
-              <CardDescription>
-                Book has been processed and saved to the database
-              </CardDescription>
+              <CardTitle>Book Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <Label className="font-semibold">Total Paragraphs:</Label>
-                <p className="text-sm mt-1">{processedBook.paragraphs.length}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Processed At:</Label>
-                <p className="text-sm mt-1">{new Date(processedBook.processedAt).toLocaleString()}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Sample Paragraph:</Label>
-                <p className="text-sm mt-1 p-3 bg-muted rounded-md">
-                  {processedBook.paragraphs[0]?.substring(0, 200)}...
-                </p>
-              </div>
+            <CardContent>
+              <p>Title: {bookMetadata.title}</p>
+              <p>Author: {bookMetadata.author}</p>
+              <p>Release Date: {bookMetadata.releaseDate}</p>
+              <p>Language: {bookMetadata.language}</p>
+              <p>Source URL: {bookMetadata.sourceUrl}</p>
+              <p>Size: {Math.round(bookData?.length / 1024)} KB</p>
             </CardContent>
           </Card>
         )}
 
-        <div className="mt-6 text-center">
-          <a 
-            href="/" 
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            ← Back to Home
-          </a>
-        </div>
+        {/* Process Book Button */}
+        {bookMetadata && bookData && (
+          <Button onClick={processBookWithGemini} disabled={processing} className="w-full mt-6">
+            {processing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {processingStatus || `Processing...`}
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Process Book & Save to Database
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
 };
 
 export default Admin;
-
