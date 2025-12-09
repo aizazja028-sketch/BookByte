@@ -36,31 +36,31 @@ const splitTextIntoChunks = (text: string, chunkSize: number = 200000): string[]
   return chunks;
 };
 
-const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata | null => {
+const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata => {
   try {
     // Find the metadata section (before "*** START OF")
     const metadataEndMarker = bookText.indexOf("*** START OF");
-    if (metadataEndMarker === -1) {
-      console.error("Could not find metadata section");
-      return null;
+    
+    let metadataSection = bookText;
+    if (metadataEndMarker !== -1) {
+      metadataSection = bookText.substring(0, metadataEndMarker);
     }
     
-    const metadataSection = bookText.substring(0, metadataEndMarker);
     console.log("Metadata section:", metadataSection.substring(0, 1000));
     
-    // Extract Title (capture everything until we hit a blank line followed by "Author:")
+    // Extract Title
     const titleMatch = metadataSection.match(/Title:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nAuthor:)/i);
     const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Title";
     
-    // Extract Author (single or multi-line until blank line)
+    // Extract Author
     const authorMatch = metadataSection.match(/Author:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nRelease date:)/i);
     const author = authorMatch ? authorMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Author";
     
-    // Extract Release Date (capture date before the bracket)
+    // Extract Release Date
     const releaseDateMatch = metadataSection.match(/Release date:\s*([^\[]+?)(?:\s*\[|$)/i);
     const releaseDate = releaseDateMatch ? releaseDateMatch[1].trim() : "Unknown Date";
     
-    // Extract Language (single line value)
+    // Extract Language
     const languageMatch = metadataSection.match(/Language:\s*([^\n]+)/i);
     const language = languageMatch ? languageMatch[1].trim() : "Unknown Language";
     
@@ -75,7 +75,13 @@ const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata 
     };
   } catch (error) {
     console.error("Error extracting metadata:", error);
-    return null;
+    return {
+      title: "Unknown Title",
+      author: "Unknown Author",
+      releaseDate: "Unknown Date",
+      language: "Unknown Language",
+      sourceUrl
+    };
   }
 };
 
@@ -100,7 +106,6 @@ const Admin = () => {
         console.log(`Loaded ${books.length} existing books from database`);
       } catch (error) {
         console.error('Error loading books:', error);
-        // Don't show error toast on mount, just log it
       }
     };
     loadBooks();
@@ -122,13 +127,11 @@ const Admin = () => {
       toast.error("Please set your OpenAI API key in the .env file");
       return;
     }
-    
 
     setProcessing(true);
     setProcessingTime(0);
     setProcessingStatus("Initializing...");
     
-    // Start timer
     const startTime = Date.now();
     const timerInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -151,7 +154,6 @@ const Admin = () => {
       
       if (startIndex !== -1 && endIndex !== -1) {
         cleanedText = bookData.substring(startIndex, endIndex);
-        // Remove the START marker line itself
         cleanedText = cleanedText.substring(cleanedText.indexOf('\n') + 1);
       }
 
@@ -165,7 +167,6 @@ const Admin = () => {
         toast.info(`Processing large book in ${totalChunks} chunks...`);
       }
 
-      // Process all chunks and collect paragraphs
       const allParagraphs: string[] = [];
 
       for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
@@ -228,7 +229,6 @@ ${chunk}`;
           throw new Error(`Chunk ${chunkIndex + 1} response was truncated due to token limit. Try a shorter chunk size.`);
         }
 
-        // Parse JSON response
         let parsedResponse;
         try {
           parsedResponse = JSON.parse(text);
@@ -272,11 +272,9 @@ ${chunk}`;
       setProcessingStatus("Saving book metadata to database...");
       toast.info("Saving book to database...");
       
-      // Parse the release date to YYYY-MM-DD format
-      let publishedDate = "2024-01-01"; // Default fallback
+      let publishedDate = "2024-01-01";
       try {
         const dateStr = bookMetadata.releaseDate;
-        // Try to extract date from various formats like "January 1, 2024" or "2024-01-01"
         const dateMatch = dateStr.match(/(\w+)\s+(\d+),\s+(\d{4})/);
         if (dateMatch) {
           const [, month, day, year] = dateMatch;
@@ -333,12 +331,11 @@ ${chunk}`;
       toast.info(`Saving ${allParagraphs.length} paragraphs...`);
       
       let savedCount = 0;
-      const batchSize = 10; // Save in batches to show progress
+      const batchSize = 10;
       
       for (let i = 0; i < allParagraphs.length; i += batchSize) {
         const batch = allParagraphs.slice(i, i + batchSize);
         
-        // Save paragraphs in parallel batches
         await Promise.all(
           batch.map(async (paragraph: string) => {
             const response = await fetch("/api/backend/paragraphs/", {
@@ -370,7 +367,6 @@ ${chunk}`;
 
       setProcessedBook(processedBookData);
 
-      // Reload books list to include the newly added book
       try {
         const updatedBooks = await getAllBooks();
         setExistingBooks(updatedBooks);
@@ -399,7 +395,6 @@ ${chunk}`;
       return;
     }
 
-    // Validate URL format
     let urlObj: URL;
     try {
       urlObj = new URL(url);
@@ -408,7 +403,6 @@ ${chunk}`;
       return;
     }
 
-    // Validate that it's a Project Gutenberg URL
     if (!url.startsWith("https://www.gutenberg.org/")) {
       toast.error("Please enter a valid Project Gutenberg URL");
       return;
@@ -416,13 +410,10 @@ ${chunk}`;
 
     let textUrl: string;
     
-    // Check if it's a direct text file URL
     const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
     if (directTextMatch) {
-      // URL is already in the correct format
       textUrl = url;
     } else {
-      // Extract ebook number from /ebooks/ URL format
       const ebookMatch = url.match(/\/ebooks\/(\d+)/);
       if (!ebookMatch) {
         toast.error("Please enter a valid URL format (e.g., https://www.gutenberg.org/ebooks/77254 or https://www.gutenberg.org/cache/epub/77251/pg77251.txt)");
@@ -436,7 +427,6 @@ ${chunk}`;
     setLoading(true);
     
     try {
-      // Use Vite's proxy in development
       const proxyUrl = '/api/gutenberg';
       const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
       
@@ -461,41 +451,31 @@ ${chunk}`;
       console.log("Book text received, length:", bookText.length);
       console.log("First 200 characters:", bookText.substring(0, 700));
       
-      // Validate that we actually got book content
       if (!bookText || bookText.length < 100) {
         throw new Error("Received invalid or empty book content");
       }
       
-      // Extract metadata
       const metadata = extractBookMetadata(bookText, textUrl);
-      if (metadata) {
-        setBookMetadata(metadata);
-        console.log("Extracted metadata:", metadata);
-        
-        // Check if book already exists in database
-        const existingMatch = existingBooks.find(
-          book => book.source === textUrl || 
-                 (book.title.toLowerCase() === metadata.title.toLowerCase() && 
-                  book.author.toLowerCase() === metadata.author.toLowerCase())
-        );
-        
-        if (existingMatch) {
-          setExistingBook(existingMatch);
-          toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
-            duration: 5000
-          });
-        } else {
-          setExistingBook(null);
-          toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
-        }
+      setBookMetadata(metadata);
+      console.log("Extracted metadata:", metadata);
+      
+      const existingMatch = existingBooks.find(
+        book => book.source === textUrl || 
+               (book.title.toLowerCase() === metadata.title.toLowerCase() && 
+                book.author.toLowerCase() === metadata.author.toLowerCase())
+      );
+      
+      if (existingMatch) {
+        setExistingBook(existingMatch);
+        toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
+          duration: 5000
+        });
       } else {
-        toast.warning("Book fetched but could not extract all metadata");
+        setExistingBook(null);
+        toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
       }
       
-      // Store the retrieved data
       setBookData(bookText);
-      
-      // Reset processed book state when new book is loaded
       setProcessedBook(null);
       
       console.log("Book data retrieved successfully. Total length:", bookText.length);
@@ -683,7 +663,6 @@ ${chunk}`;
           </Card>
         )}
 
-        {/* Back to Home */}
         <div className="mt-6 text-center">
           <a 
             href="/" 
