@@ -184,7 +184,8 @@ ${cleanedText}`;
             role: "user",
             content: prompt
           }
-        ], 
+        ],
+        max_completion_tokens: 100000  
       });
       
       const text = completion.choices[0].message.content || "";
@@ -261,7 +262,8 @@ ${cleanedText}`;
       } catch (error) {
         console.warn("Could not parse date, using default:", error);
       }
-        const bookResponse = await fetch(`${API}/books/`, {
+      
+      const bookResponse = await fetch(`${API}/books/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -273,7 +275,7 @@ ${cleanedText}`;
           language: bookMetadata.language,
           source: bookMetadata.sourceUrl
         })
-          });
+      });
 
       if (!bookResponse.ok) {
         const errorText = await bookResponse.text();
@@ -798,9 +800,6 @@ const handleSubmit = async (e: React.FormEvent) => {
 };
 
 export default Admin;
-
-
-
 
 
 
