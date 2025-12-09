@@ -67,6 +67,32 @@ const createProcessingPrompt = (chunk: string, chunkIndex: number, totalChunks: 
   `;
 };
 
+// Function to extract metadata from book text
+const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata | null => {
+  try {
+    const metadataEndMarker = bookText.indexOf("*** START OF");
+    if (metadataEndMarker !== -1) {
+      bookText = bookText.substring(0, metadataEndMarker);
+    }
+
+    const titleMatch = bookText.match(/Title:\s*(.*)/);
+    const authorMatch = bookText.match(/Author:\s*(.*)/);
+    const releaseDateMatch = bookText.match(/Release date:\s*(.*)/);
+    const languageMatch = bookText.match(/Language:\s*(.*)/);
+
+    return {
+      title: titleMatch ? titleMatch[1] : "Unknown Title",
+      author: authorMatch ? authorMatch[1] : "Unknown Author",
+      releaseDate: releaseDateMatch ? releaseDateMatch[1] : "Unknown Date",
+      language: languageMatch ? languageMatch[1] : "Unknown Language",
+      sourceUrl
+    };
+  } catch (error) {
+    console.error("Error extracting metadata:", error);
+    return null;
+  }
+};
+
 const Admin = () => {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
