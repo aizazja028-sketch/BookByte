@@ -56,14 +56,15 @@ const cleanText = (text: string) => {
 // Helper function to create OpenAI prompt
 const createProcessingPrompt = (chunk: string, chunkIndex: number, totalChunks: number) => {
   return `
-    You are a text processing assistant. Analyze the following book text and extract all paragraphs.
-    CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
-    1. Each paragraph MUST be between 3-7 sentences (NO MORE, NO LESS).
-    2. Count sentences carefully - a sentence ends with . ! or ?.
-    3. Skip headers, footers, and table of contents.
-    
-    Book text (Chunk ${chunkIndex}/${totalChunks}):
-    ${chunk}
+  You are a text processing assistant. Analyze the following book text and extract all paragraphs.
+  CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
+  1. Each paragraph MUST be between 3-7 sentences (NO MORE, NO LESS).
+  2. Each paragraph must be in separate quotes with commas between them.
+  3. Never modify the text. Return the paragraphs as they are.
+  4. Skip empty lines, page numbers, headers, footers, chapter titles.
+  5. Return ONLY a JSON array containing the paragraphs, no extra text.
+  Book text (Chunk ${chunkIndex + 1}/${totalChunks}):
+  ${chunk}
   `;
 };
 
@@ -535,3 +536,4 @@ const Admin = () => {
 };
 
 export default Admin;
+
