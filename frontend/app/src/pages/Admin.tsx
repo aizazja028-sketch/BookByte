@@ -8,6 +8,8 @@ import { Loader2, Upload, BookOpen, Sparkles } from "lucide-react";
 import OpenAI from "openai";
 import { getAllBooks, type BookResponse } from "@/lib/eventsApi";
 
+const API = import.meta.env.VITE_BACKEND_URL;
+
 interface BookMetadata {
   title: string;
   author: string;
@@ -36,53 +38,33 @@ const splitTextIntoChunks = (text: string, chunkSize: number = 200000): string[]
   return chunks;
 };
 
-const extractBookMetadata = (bookText: string, sourceUrl: string): BookMetadata => {
-  try {
-    // Find the metadata section (before "*** START OF")
-    const metadataEndMarker = bookText.indexOf("*** START OF");
-    
-    let metadataSection = bookText;
-    if (metadataEndMarker !== -1) {
-      metadataSection = bookText.substring(0, metadataEndMarker);
-    }
-    
-    console.log("Metadata section:", metadataSection.substring(0, 1000));
-    
-    // Extract Title
-    const titleMatch = metadataSection.match(/Title:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nAuthor:)/i);
-    const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Title";
-    
-    // Extract Author
-    const authorMatch = metadataSection.match(/Author:\s*([^\n]+(?:\n\s+[^\n]+)*?)(?=\n\s*\n|\nRelease date:)/i);
-    const author = authorMatch ? authorMatch[1].replace(/\s+/g, ' ').trim() : "Unknown Author";
-    
-    // Extract Release Date
-    const releaseDateMatch = metadataSection.match(/Release date:\s*([^\[]+?)(?:\s*\[|$)/i);
-    const releaseDate = releaseDateMatch ? releaseDateMatch[1].trim() : "Unknown Date";
-    
-    // Extract Language
-    const languageMatch = metadataSection.match(/Language:\s*([^\n]+)/i);
-    const language = languageMatch ? languageMatch[1].trim() : "Unknown Language";
-    
-    console.log("Extracted values:", { title, author, releaseDate, language });
-    
-    return {
-      title,
-      author,
-      releaseDate,
-      language,
-      sourceUrl
-    };
-  } catch (error) {
-    console.error("Error extracting metadata:", error);
-    return {
-      title: "Unknown Title",
-      author: "Unknown Author",
-      releaseDate: "Unknown Date",
-      language: "Unknown Language",
-      sourceUrl
-    };
+// Function to clean text by removing unnecessary headers and footers
+const cleanText = (text: string) => {
+  const startMarker = "*** START OF THE PROJECT GUTENBERG EBOOK";
+  const endMarker = "*** END OF THE PROJECT GUTENBERG EBOOK";
+  
+  const startIndex = text.indexOf(startMarker);
+  const endIndex = text.indexOf(endMarker);
+  
+  if (startIndex !== -1 && endIndex !== -1) {
+    return text.substring(startIndex, endIndex).substring(text.indexOf('\n') + 1);
   }
+
+  return text;
+};
+
+// Helper function to create OpenAI prompt
+const createProcessingPrompt = (chunk: string, chunkIndex: number, totalChunks: number) => {
+  return `
+    You are a text processing assistant. Analyze the following book text and extract all paragraphs.
+    CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
+    1. Each paragraph MUST be between 3-7 sentences (NO MORE, NO LESS).
+    2. Count sentences carefully - a sentence ends with . ! or ?.
+    3. Skip headers, footers, and table of contents.
+    
+    Book text (Chunk ${chunkIndex}/${totalChunks}):
+    ${chunk}
+  `;
 };
 
 const Admin = () => {
@@ -111,6 +93,7 @@ const Admin = () => {
     loadBooks();
   }, []);
 
+  // Process book using Gemini (OpenAI)
   const processBookWithGemini = async () => {
     if (!bookData || !bookMetadata) {
       toast.error("Please fetch a book first");
@@ -131,7 +114,7 @@ const Admin = () => {
     setProcessing(true);
     setProcessingTime(0);
     setProcessingStatus("Initializing...");
-    
+
     const startTime = Date.now();
     const timerInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -144,25 +127,13 @@ const Admin = () => {
         dangerouslyAllowBrowser: true
       });
 
-      // Remove Project Gutenberg header/footer
-      const startMarker = "*** START OF THE PROJECT GUTENBERG EBOOK";
-      const endMarker = "*** END OF THE PROJECT GUTENBERG EBOOK";
-      
-      let cleanedText = bookData;
-      const startIndex = bookData.indexOf(startMarker);
-      const endIndex = bookData.indexOf(endMarker);
-      
-      if (startIndex !== -1 && endIndex !== -1) {
-        cleanedText = bookData.substring(startIndex, endIndex);
-        cleanedText = cleanedText.substring(cleanedText.indexOf('\n') + 1);
-      }
+      // Clean the book content
+      const cleanedText = cleanText(bookData);
 
       // Split text into chunks if larger than 200k
       const chunks = splitTextIntoChunks(cleanedText, 200000);
       const totalChunks = chunks.length;
-      
-      console.log(`Book size: ${cleanedText.length} characters, split into ${totalChunks} chunk(s)`);
-      
+
       if (totalChunks > 1) {
         toast.info(`Processing large book in ${totalChunks} chunks...`);
       }
@@ -172,42 +143,11 @@ const Admin = () => {
       for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         const chunk = chunks[chunkIndex];
         setProcessingStatus(`Processing chunk ${chunkIndex + 1}/${totalChunks} with OpenAI...`);
-        
         toast.info(`Processing chunk ${chunkIndex + 1}/${totalChunks} (${Math.round(chunk.length / 1000)}K characters)...`);
 
-        const prompt = `You are a text processing assistant. Analyze the following book text and extract all paragraphs.
+        const prompt = createProcessingPrompt(chunk, chunkIndex + 1, totalChunks);
 
-CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
-1. Each paragraph MUST be between 3-7 sentences (NO MORE, NO LESS)
-2. NEVER create single-word or single-sentence paragraphs
-3. NEVER create paragraphs longer than 7 sentences
-4. Count sentences carefully - a sentence ends with . ! or ?
-5. If dialogue is short, combine multiple exchanges into one paragraph (up to 7 sentences)
-6. Preserve the original text exactly (no summarization or modification)
-7. Skip empty lines, page numbers, headers, footers, chapter titles
-8. Do NOT include table of contents, index, or chapter listings
-9. Skip prefaces and forewords if not part of main narrative
-10. Split very long paragraphs into multiple smaller ones (3-7 sentences each)
-
-PARAGRAPH SIZE RULES:
-- Minimum: 3 sentences
-- Maximum: 7 sentences
-- Target: 4-6 sentences per paragraph
-- If original paragraph is 15 sentences, split it into 3 paragraphs of 5 sentences each
-
-Return ONLY a valid JSON object in this exact format with no additional text:
-{
-  "paragraphs": [
-    "First paragraph text here...",
-    "Second paragraph text here..."
-  ]
-}
-
-Book text (Chunk ${chunkIndex + 1}/${totalChunks}):
-${chunk}`;
-
-        console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}, text length: ${chunk.length}`);
-
+        // Call OpenAI API
         const completion = await openai.chat.completions.create({
           model: "o1",
           messages: [
@@ -220,76 +160,23 @@ ${chunk}`;
         });
 
         const text = completion.choices[0].message.content || "";
-        const finishReason = completion.choices[0].finish_reason;
-
-        console.log(`Chunk ${chunkIndex + 1} response length:`, text.length);
-        console.log(`Chunk ${chunkIndex + 1} finish reason:`, finishReason);
-
-        if (finishReason === "length") {
-          throw new Error(`Chunk ${chunkIndex + 1} response was truncated due to token limit. Try a shorter chunk size.`);
-        }
 
         let parsedResponse;
         try {
           parsedResponse = JSON.parse(text);
         } catch (parseError) {
-          console.error(`Failed to parse JSON for chunk ${chunkIndex + 1}, trying alternative extraction:`, parseError);
-
-          let jsonText = text;
-
-          if (text.includes('```json')) {
-            const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) {
-              jsonText = jsonMatch[1];
-            }
-          } else if (text.includes('```')) {
-            const jsonMatch = text.match(/```\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) {
-              jsonText = jsonMatch[1];
-            }
-          }
-
-          const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/);
-          if (!jsonObjectMatch) {
-            console.error(`Full response text for chunk ${chunkIndex + 1}:`, text);
-            throw new Error(`Could not extract JSON from OpenAI response for chunk ${chunkIndex + 1}`);
-          }
-
-          parsedResponse = JSON.parse(jsonObjectMatch[0]);
+          console.error(`Failed to parse JSON for chunk ${chunkIndex + 1}`, parseError);
+          throw new Error(`Failed to parse response for chunk ${chunkIndex + 1}`);
         }
 
         if (!parsedResponse.paragraphs || !Array.isArray(parsedResponse.paragraphs)) {
-          throw new Error(`Invalid response format from OpenAI for chunk ${chunkIndex + 1} - missing paragraphs array`);
+          throw new Error(`Invalid response format for chunk ${chunkIndex + 1} - missing paragraphs`);
         }
 
-        console.log(`Chunk ${chunkIndex + 1} extracted ${parsedResponse.paragraphs.length} paragraphs`);
         allParagraphs.push(...parsedResponse.paragraphs);
       }
 
-      console.log(`Total paragraphs extracted from all chunks: ${allParagraphs.length}`);
-
-      // Step 1: Save the book to the backend
-      setProcessingStatus("Saving book metadata to database...");
-      toast.info("Saving book to database...");
-      
-      let publishedDate = "2024-01-01";
-      try {
-        const dateStr = bookMetadata.releaseDate;
-        const dateMatch = dateStr.match(/(\w+)\s+(\d+),\s+(\d{4})/);
-        if (dateMatch) {
-          const [, month, day, year] = dateMatch;
-          const monthMap: { [key: string]: string } = {
-            'January': '01', 'February': '02', 'March': '03', 'April': '04',
-            'May': '05', 'June': '06', 'July': '07', 'August': '08',
-            'September': '09', 'October': '10', 'November': '11', 'December': '12'
-          };
-          const monthNum = monthMap[month] || '01';
-          publishedDate = `${year}-${monthNum}-${day.padStart(2, '0')}`;
-        }
-      } catch (error) {
-        console.warn("Could not parse date, using default:", error);
-      }
-      
+      // Step 1: Save the book metadata to the backend
       const bookResponse = await fetch("/api/backend/books/", {
         method: "POST",
         headers: {
@@ -298,44 +185,22 @@ ${chunk}`;
         body: JSON.stringify({
           title: bookMetadata.title,
           author: bookMetadata.author,
-          published_date: publishedDate,
+          published_date: bookMetadata.releaseDate,
           language: bookMetadata.language,
           source: bookMetadata.sourceUrl
         })
       });
 
-      if (!bookResponse.ok) {
-        const errorText = await bookResponse.text();
-        let errorMessage = `Failed to save book: ${bookResponse.status}`;
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          errorMessage = errorText || errorMessage;
-        }
-        
-        throw new Error(errorMessage);
-      }
-
       const bookResponseData = await bookResponse.json();
       const bookId = bookResponseData.id;
-      
-      console.log("Book saved with ID:", bookId);
+
       toast.success(`Book saved! ID: ${bookId}`);
-      
-      // Step 2: Save all paragraphs
-      setProcessingStatus(`Saving paragraphs to database (0/${allParagraphs.length})...`);
-      toast.info(`Saving ${allParagraphs.length} paragraphs...`);
-      
+
+      // Step 2: Save paragraphs to the backend
       let savedCount = 0;
       const batchSize = 10;
-      
       for (let i = 0; i < allParagraphs.length; i += batchSize) {
         const batch = allParagraphs.slice(i, i + batchSize);
-        
         await Promise.all(
           batch.map(async (paragraph: string) => {
             const response = await fetch("/api/backend/paragraphs/", {
@@ -348,35 +213,19 @@ ${chunk}`;
                 content: paragraph
               })
             });
-            
+
             if (!response.ok) {
               console.error(`Failed to save paragraph: ${response.status}`);
             }
-            
+
             savedCount++;
             setProcessingStatus(`Saving paragraphs to database (${savedCount}/${allParagraphs.length})...`);
           })
         );
       }
 
-      const processedBookData: ProcessedBook = {
-        metadata: bookMetadata,
-        paragraphs: allParagraphs,
-        processedAt: new Date().toISOString()
-      };
-
-      setProcessedBook(processedBookData);
-
-      try {
-        const updatedBooks = await getAllBooks();
-        setExistingBooks(updatedBooks);
-      } catch (error) {
-        console.error('Error reloading books:', error);
-      }
-
+      toast.success(`Book processed and saved! ${allParagraphs.length} paragraphs saved to the database.`);
       clearInterval(timerInterval);
-      toast.success(`Book processed and saved! ${allParagraphs.length} paragraphs saved to database (${totalChunks} chunk(s) processed).`);
-      console.log("Processed book:", processedBookData);
     } catch (error) {
       clearInterval(timerInterval);
       console.error("Error processing book:", error);
@@ -387,9 +236,10 @@ ${chunk}`;
     }
   };
 
+  // Handle book URL input and fetching
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!url.trim()) {
       toast.error("Please enter a URL");
       return;
@@ -409,7 +259,7 @@ ${chunk}`;
     }
 
     let textUrl: string;
-    
+
     const directTextMatch = url.match(/\/cache\/epub\/(\d+)\/pg\d+\.txt$/);
     if (directTextMatch) {
       textUrl = url;
@@ -425,46 +275,37 @@ ${chunk}`;
     }
 
     setLoading(true);
-    
+
     try {
       const proxyUrl = '/api/gutenberg';
       const fetchUrl = textUrl.replace('https://www.gutenberg.org', proxyUrl);
-      
-      console.log("Fetching from:", fetchUrl);
-      
+
       const response = await fetch(fetchUrl, {
         method: 'GET',
         headers: {
           'Accept': 'text/plain',
         },
       });
-      
-      console.log("Response status:", response.status);
-      console.log("Response ok:", response.ok);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch book: ${response.status} ${response.statusText}`);
       }
 
       const bookText = await response.text();
-      
-      console.log("Book text received, length:", bookText.length);
-      console.log("First 200 characters:", bookText.substring(0, 700));
-      
+
       if (!bookText || bookText.length < 100) {
         throw new Error("Received invalid or empty book content");
       }
-      
+
       const metadata = extractBookMetadata(bookText, textUrl);
       setBookMetadata(metadata);
-      console.log("Extracted metadata:", metadata);
-      
+
       const existingMatch = existingBooks.find(
         book => book.source === textUrl || 
                (book.title.toLowerCase() === metadata.title.toLowerCase() && 
                 book.author.toLowerCase() === metadata.author.toLowerCase())
       );
-      
+
       if (existingMatch) {
         setExistingBook(existingMatch);
         toast.warning(`Book \"${metadata.title}\" by ${metadata.author} already exists in the database!`, {
@@ -474,21 +315,12 @@ ${chunk}`;
         setExistingBook(null);
         toast.success(`Book \"${metadata.title}\" by ${metadata.author} fetched successfully!`);
       }
-      
+
       setBookData(bookText);
       setProcessedBook(null);
-      
-      console.log("Book data retrieved successfully. Total length:", bookText.length);
-      console.log("Book URL submitted:", url);
-      console.log("Text URL:", textUrl);
-      
-      setUrl("");
+
     } catch (error) {
       console.error("Error fetching book:", error);
-      console.error("Error details:", {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      });
       toast.error(error instanceof Error ? error.message : "Failed to fetch book");
     } finally {
       setLoading(false);
@@ -641,7 +473,7 @@ ${chunk}`;
             <CardHeader>
               <CardTitle>Processing Complete!</CardTitle>
               <CardDescription>
-                Book has been processed and saved to database
+                Book has been processed and saved to the database
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
