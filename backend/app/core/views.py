@@ -1,13 +1,36 @@
 from django.shortcuts import render
 from django.http import JsonResponse
+
+from .services import OpenAIService  
 from .models import Book, Paragraph,UserIdentifier, Event
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.http import HttpResponse
 import requests
-
 import json
 import uuid
+
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def process_book(request):
+    """Process book text with OpenAI"""
+    try:
+        data = json.loads(request.body)
+        
+        service = OpenAIService()
+        result = service.process_book_text(
+            book_text=data.get('bookText'),
+            chunk_index=data.get('chunkIndex', 1),
+            total_chunks=data.get('totalChunks', 1)
+        )
+        
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 # Create your views here.
 @csrf_exempt
 def book_list(request):
@@ -471,7 +494,7 @@ def proxy_gutenberg(request):
         return JsonResponse({'error': 'Invalid URL'}, status=400)
     
     try:
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=120)
         response.raise_for_status()
         return HttpResponse(response.content, content_type='text/plain')
     except requests.RequestException as e:

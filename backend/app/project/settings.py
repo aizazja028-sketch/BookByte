@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from decouple import config, Csv
+# from dotenv import load_dotenv
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -79,19 +80,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'project.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# ------.. Updated this --------
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-# ------- .. added this section 
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.mysql',
@@ -101,27 +90,28 @@ WSGI_APPLICATION = 'project.wsgi.application'
 #         'HOST': os.environ.get('MYSQLHOST'),
 #         'PORT': os.environ.get('MYSQLPORT'),
 #         'OPTIONS': {
-#             'charset': 'utf8mb4',
+#             "charset": "utf8mb4",
+#             'ssl': {},
 #         }
 #     }
 # }
+
+# remove these before git
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('MYSQLDATABASE'),
-        'USER': os.environ.get('MYSQLUSER'),
-        'PASSWORD': os.environ.get('MYSQLPASSWORD'),
-        'HOST': os.environ.get('MYSQLHOST'),
-        'PORT': os.environ.get('MYSQLPORT'),
+        'NAME': config('MYSQLDATABASE'),
+        'USER': config('MYSQLUSER'),
+        'PASSWORD': config('MYSQLPASSWORD'),
+        'HOST': config('MYSQLHOST'),
+        'PORT': config('MYSQLPORT'),
         'OPTIONS': {
             "charset": "utf8mb4",
-            'ssl': {}
+            'sql_mode': 'STRICT_TRANS_TABLES',
+            'unix_socket': '/var/run/mysqld/mysqld.sock'
         }
     }
 }
-
-
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -165,12 +155,12 @@ STATIC_ROOT = os.path.join(BASE_DIR, "static")
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
+# plase comment this code before running
 # CORS settings
-# CORS_ALLOWED_ORIGINS = [
-#     'http://localhost:8080',
-#     'http://192.168.18.44:8080',
-# ]
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:8080',
+    'http://192.168.18.44:8080',
+]
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:8080', cast=Csv())
